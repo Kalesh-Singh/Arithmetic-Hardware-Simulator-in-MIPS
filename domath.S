@@ -53,17 +53,25 @@ do_math:
 
 do_add:
 	# TODO: implement do_add
+	add $v0, $a0, $a1 # FIXME: add is not allowed!
 	jr $ra
 
 do_subtract:
 	# TODO: implement do_subtract
+	sub $v0, $a0, $a1 # FIXME: sub is not allowed!
 	jr $ra
 
 do_multiply:
 	# TODO: implement do_multiply
+	mult $a0, $a1 # FIXME: mult is not allowed!
+	mfhi $v1
+	mflo $v0
 	jr $ra
 
 do_divide:
 	# TODO: implement do_divide
+	div $a0, $a1 # FIXME: div is not allowed!
+	mfhi $v1 # remainder
+	mflo $v0 # quotient
 	jr $ra
 
