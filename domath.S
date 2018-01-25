@@ -6,9 +6,9 @@
 
 # Variables in the .data section.
 .data
-
-# string var named prompt
-prompt: .asciiz "Please enter an integer: "
+    prompt1:    .asciiz     "Please enter an integer: "
+	prompt2:    .asciiz     "Please enter an operator (+, -, *, /): "
+	error_msg:  .asciiz     "Error: invalid arithmetic operation 'OP'." 
 
 # Instructions in the .text section.
 .text
@@ -17,41 +17,156 @@ prompt: .asciiz "Please enter an integer: "
 # reading two integers and an operator, and passing the read
 # values to do_math
 main:
-	# maintain a proper call stack
+	# Maintain a proper call stack
 	addi $sp, $sp, -4
 	sw $ra, 0($sp)
-	
-	# print the prompt message 
+
+    # Prompt the user to enter the 1st integer
 	li $v0, 4
-	la $a0, prompt
+	la $a0, prompt1
 	syscall
 
-	# read an integer from user
+	# Read the 1st integer
 	li $v0, 5
 	syscall
 
-	# put input integer into argument register
-	or $a0, $v0, $zero
+	# Put input integer into argument register
+	add $a1, $v0, $zero
+    
+	# Prompt the user to enter the sign
+	li $v0, 4
+	la $a0, prompt2
+	syscall
+	
+	# Read the the sign character
+	li $v0, 12
+	syscall
+	
+	# Put the input sign into argument register
+	add $a2, $v0, $zero
 
-	# TODO: print the operator prompt, and read the operator
+	# Prompt the user to enter the 2nd integer
+	li $v0, 4
+	la $a0, prompt1
+	syscall 
 
-	# TODO: print prompt message and read another integer
-
-	# TODO: call do_math(integer, operator, integer)
+	# Read the 2nd integer
+	li $v0, 5
+	syscall
+	
+	# Put input integer into argument register
+	add $a3, $v0, $zero
+	
+	# Call do_math
+	jal do_math
 
 	# Restore return address and unwind the stack
 	lw $ra, 0($sp)
 	addi $sp, $sp, 4
 
-	# TODO: return 0
+	# TODO: return 0 from main using jr (do not use the 'exit' syscall)
+
+	# TODO: Delete this after fixing the above return
+	Exit:
+		li $v0, 10
+		syscall
 
 # do_math takes three register arguments containing two integers (X, Y)
 # and a character indicating an arithmetic operator (OP),
 # invokes a subroutine to calculate X OP Y, and
 # prints the result or an error message.
+
 do_math:
-	# TODO: implement do_math
-	jr $ra
+	# TODO: fix do_math
+
+	# Maintain a proper call stack
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+
+    addition:
+		bne $a2, '+', subtraction
+		jal do_add
+		j print_result
+	
+	subtraction:
+		bne $a2, '-', multiplication
+		jal do_subtract
+		j print_result
+
+	multiplication:
+		bne $a2, '*', division
+		jal do_multiply
+		j print_result
+
+    division:
+		bne $a2, '/', error
+		jal do_divide
+		j print_result
+
+	error:
+		li $v0, 4
+		la $a0, error_msg
+		syscall
+
+	print_result:
+		# Get the result returned from the operation
+		add $t0, $v0, $zero
+		add $t1, $v1, $zero
+
+        # Print the 1st integer
+		li $v0, 1
+		add $a0, $a1, $zero
+		syscall
+
+        # Print a space
+		li $v0, 11
+		li $a0, 32      # 32 - Is the ASCII decimal value of ' '
+		syscall
+
+		# Print the sign character
+		li $v0, 11
+		add $a0, $a2, $zero
+		syscall
+
+		# Print a space
+		li $v0, 11
+		li $a0, 32      # 32 - Is the ASCII decimal value of ' '
+		syscall
+
+		# Print the 2nd integer
+		li $v0, 1
+		add $a0, $a3, $zero
+		syscall
+
+		# Print space
+		li $v0, 11
+		li $a0, 32      # 32 - Is the ASCII decimal value of ' '
+		syscall
+
+		# Print the equal sign charcter
+        li $v0, 11
+		li $a0, 61      # 61 - Is the ASCII decimal value of '='
+		syscall
+
+		# Print space
+		li $v0, 11
+		li $a0, 32      # 32 - Is the ASCII decimal value of ' '
+		syscall
+
+		# Print the integer result
+		beq $t1, 0, result_32bits
+		
+		result_32bits:
+			li $v0, 1
+			add $a0, $t0, $zero
+			syscall
+
+	# Restore return address and unwind the stack
+	lw $ra, 0($sp)
+	addi $sp, $sp, 4
+
+	return:
+		jr $ra
 
 do_add:
 	# TODO: implement do_add
