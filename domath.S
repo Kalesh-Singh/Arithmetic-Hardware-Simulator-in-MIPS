@@ -207,8 +207,8 @@ do_math:
 			beq $t1, 0, result_32bits
 			
 			setArgs:
-				addi $v0, $t0, 0
-				addi $v1, $t1, 0
+				addi $a0, $t0, 0
+				addi $a1, $t1, 0
 				jal print64bitNum
 
 	return:
@@ -228,11 +228,77 @@ do_subtract:
 	jr $ra
 
 do_multiply:
-	# TODO: implement do_multiply
-	mult $a1, $a3 # FIXME: mult is not allowed!
-	mfhi $v1
-	mflo $v0
-	jr $ra
+	#li $v0, 0					# Initialize the lo register ($v0) to 0
+	#li $v1, 0					# Initialize the hi register ($v1) to 0
+
+	#addi $t0, $a1, 0					# Initialize add0 register to the multiplier
+	#li $t1, 0					# Initialize add1 register to 0
+	
+	#addi $t5, $a3, 0				# Copy the multiplier
+		
+	#li $t2, 0					# Initialize a counter to 0
+
+	#loop4:
+		# Check if the multiplier bit is 1
+	#	andi $t3, $t5, 1		# If $t3 is 1 then the multiplier bit was 1
+	#	bne $t3, 1, next		# Else --> next
+		
+		# Handles for addition and overflow form lo
+	#	addi $t3, $v0, 0			# Get the MSB of $v0
+	#	srl $t3, $t3, 31
+
+	#	addi $t4, $t0, 0			# Get the MSB of $t0
+	#	srl $t4, $t4, 31
+
+	#	add $t3, $t3, $t4			# Sum the 2 MSBs
+
+	#	beq $t3, 0, noOverflow		# If the sum == 0 --> noOverflow
+	#	beq $t3, 2, overflow		# If the sum == 2 --> overflow
+		
+	#	addu $v0, $v0, $t0	
+		
+	#	addi $t3, $v0, 0		# Get the MSB of $v0
+	#	srl $t3, $t3, 31
+		
+	#	beq $t3, 0, overflow2
+	#	j noOverflow
+		
+		
+	#	overflow:
+	#		addi $v1, $v1, 1			# Else add 1 to the high register
+	#		addu $v0, $v0, $t0
+	#		addu $v1, $v1, $t1		# Addition of add1 and hi
+	#		j next
+			
+	#	overflow2:
+	#		addi $v1, $v1, 1
+	#		addu $v1, $v1, $t1
+	#		j next
+			
+	#	noOverflow:
+	#		addu $v0, $v0, $t0
+	#		addu $v1, $v1, $t1		# Addition of add1 and hi
+
+	#	next:
+		
+	#		addi $t3, $t0, 0		# Get the MSB of the add0 register
+	#		srl $t3, $t3, 31
+
+	#		sll $t0, $t0, 1			# Shift add0 register left by 1
+	#		sll $t1, $t1, 1			# Shift add1 register left by 1
+
+	#		add $t1, $t1, $t3		# Add the MSB of add0 reg to add1 reg
+		
+	#		srl $t5, $t5, 1			# Shift the multiplier right by 1
+	#		addi $t2, $t2, 1		# Increment the counter
+	#		beq $t2, 32, return3	# If shift == 32 --> return3
+	#		j loop4
+
+	 return3:
+		mult $a1, $a3
+		mfhi $v1
+		mflo $v0
+		jr $ra
 
 do_divide:
 	# TODO: implement do_divide
@@ -243,8 +309,8 @@ do_divide:
 
 print64bitNum:
 	# Get the arguments
-	addi $t0, $v0, 0
-	addi $t1, $v1, 0
+	addi $t0, $a0, 0
+	addi $t1, $a1, 0
 
 	li $t2, 0				# Initialize the digit count to 0
 	li $t3, 19				# Set the index of the least significant digit to 19
@@ -263,11 +329,12 @@ print64bitNum:
 
 	loop2:
 		addi $t5, $t5, 1					# Increment the counter
-		divu $t1, $4						# Divide the number in the higher register by 16
+		divu $t1, $t4						# Divide the number in the higher register by 16
 		mflo $t1							# Set the dividend to the quotient
 		mfhi $t6							# Get the remainder
 		addi $sp, $sp, -1					# Store the remainder on the stack
-		sb $t6, 0($sp)						
+		sb $t6, 0($sp)	
+		# beq $t5, 16, decimal					
 		beq $t1, 0, decimal					# If dividend == 0 --> decimal
 		j loop2
 
