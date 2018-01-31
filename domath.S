@@ -78,10 +78,17 @@ main:
 # prints the result or an error message.
 
 do_math:
-
 	# Maintain a proper call stack
 	addi $sp, $sp, -4
 	sw $ra, 0($sp)
+
+	# store values into the stack
+	addi $sp, $sp, -4
+	sw $a1, 0($sp)
+	addi $sp, $sp, -4
+	sw $a2, 0($sp)
+	addi $sp, $sp, -4
+	sw $a3, 0($sp)
 
     addition:
 		bne $a2, '+', subtraction
@@ -122,6 +129,14 @@ do_math:
 		syscall
 
 	print_result:
+		# retrieve values from the stack
+		lw $a3, 0($sp)
+		addi $sp, $sp, 4
+		lw $a2, 0($sp)
+		addi $sp, $sp, 4
+		lw $a1, 0($sp)
+		addi $sp, $sp, 4
+
 		# Get the result returned from the operation
 		add $t0, $v0, $zero
 		add $t1, $v1, $zero
@@ -216,11 +231,6 @@ do_math:
 		lw $ra, 0($sp)
 		addi $sp, $sp, 4
 		jr $ra
-
-do_add:
-	# TODO: implement do_add
-	add $v0, $a1, $a3 # FIXME: add is not allowed!
-	jr $ra
 
 do_subtract:
 	# TODO: implement do_subtract
@@ -392,4 +402,133 @@ print64bitNum:
 		j printDigits
 
 	return2:
+		jr $ra
+
+half_adder:
+	ori $t1, $a1, 0		# moving arguments to registers
+	ori $t2, $a2, 0
+
+	xor $v0, $t1, $t2	# return the sum through v0
+	and $v1, $t1, $t2	# return the carry out through v1
+
+	jr $ra
+
+full_adder:
+	#store return address of full_adder on the stack
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+
+	ori $t1, $a1, 0		# bit1
+	ori $t2, $a2, 0		# bit2
+	ori $t3, $a3, 0		# carry in
+
+	ori $a1, $t1, 0		# settign arguments to call half adder
+	ori $a2, $t2, 0		
+
+	jal half_adder
+
+	ori $t4, $v1, 0		# storing carryout1 in t4
+
+	ori $a1, $v0, 0		# setting arguments for second half adder
+	ori $a2, $t3, 0
+
+	jal half_adder		# final sum returned in $v0
+
+	or $v1, $v1, $t4	# return final carry out
+
+	# retrieve the return address from the stack
+	lw $ra, 0($sp)
+	addi $sp, $sp, 4
+
+	jr $ra
+
+	
+do_add:
+	#store return address of full_adder on the stack
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+
+	ori $t1, $a1, 0		# get arguments
+	ori $t2, $a3, 0
+	li $t3, 0			# initial carry in to a 32 bit adder is 0
+
+	# storing the signs of the arguments
+	ori $t6, $t1, 0		# moving first argument into t6
+	srl $t6, $t6, 31	# getting the sign of the first argument
+	ori $t7, $t2, 0		# moving second argument to t7	
+	srl $t7, $t7, 31	# getting the sign of the second argument
+
+	li $t4, 0			# initialize counter to 0
+	li $t5, 0			# register to accumulate the final sum
+
+	loop6:
+		and $a1, $t1, 1		# extracting the least significant bits
+		and $a2, $t2, 1
+		ori $a3, $t3, 0
+
+		# store values onto stack 
+		addi $sp, $sp, -4
+		sw $a1, 0($sp)
+		addi $sp, $sp, -4
+		sw $a2, 0($sp)
+		addi $sp, $sp, -4
+		sw $t1, 0($sp)
+		addi $sp, $sp, -4
+		sw $t2, 0($sp)
+		addi $sp, $sp, -4
+		sw $t3, 0($sp)
+		addi $sp, $sp, -4
+		sw $t4, 0($sp)
+
+		jal full_adder
+
+		# retrieve values from the stack
+		lw $t4, 0($sp)
+		addi $sp, $sp, 4
+		lw $t3, 0($sp)
+		addi $sp, $sp, 4
+		lw $t2, 0($sp)
+		addi $sp, $sp, 4
+		lw $t1, 0($sp)
+		addi $sp, $sp, 4
+		lw $a2, 0($sp)
+		addi $sp, $sp, 4
+		lw $a1, 0($sp)
+		addi $sp, $sp, 4
+
+		sllv $v0, $v0, $t4	# shift the sum left by the counter value
+		or $t5, $v0, $t5	# or the bitwise sum with the accumulator
+
+		srl $t1, $t1, 1		# getting the next least significant bits
+		srl $t2, $t2, 1
+
+		ori $t3, $v1, 0		# storing the carry out as the next carry in 
+
+		addi $t4, $t4, 1	# increment the counter
+		beq $t4, 32, continue2		# exit loop if counter = 32
+		j loop6
+
+	continue2:
+		ori $v0, $t5, 0		# return sum in v0 
+
+		# check for overflow with signed integers : 
+		# overflow only occurs when both the operands have the same sign 
+		# and the sum has a different sign
+		bne $t6, $t7, no_overflow1	
+
+		ori $t8, $t5, 0		# moving sum into t8
+		srl $t8, $t8, 31	# getting the sign of the sum
+
+		bne $t6, $t8, no_overflow1 
+
+		li $v1, 1			# set overflow return value to 1
+		J return4
+
+	no_overflow1:
+		li $v1, 1			# set overflow return value to 0
+
+	return4:
+		# retrieve the return address from the stack
+		lw $ra, 0($sp)
+		addi $sp, $sp, 4
 		jr $ra
