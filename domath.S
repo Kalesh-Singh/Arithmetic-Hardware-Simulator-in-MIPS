@@ -232,11 +232,6 @@ do_math:
 		addi $sp, $sp, 4
 		jr $ra
 
-do_subtract:
-	# TODO: implement do_subtract
-	sub $v0, $a1, $a3 # FIXME: sub is not allowed!
-	jr $ra
-
 do_multiply:
 	li $v0, 0					# Initialize the lo register ($v0) to 0
 	li $v1, 0					# Initialize the hi register ($v1) to 0
@@ -442,7 +437,7 @@ full_adder:
 
 	jr $ra
 
-	
+
 do_add:
 	#store return address of full_adder on the stack
 	addi $sp, $sp, -4
@@ -528,6 +523,37 @@ do_add:
 		li $v1, 1			# set overflow return value to 0
 
 	return4:
+		# retrieve the return address from the stack
+		lw $ra, 0($sp)
+		addi $sp, $sp, 4
+		jr $ra
+
+do_subtract:
+		#store return address of full_adder on the stack
+		addi $sp, $sp, -4
+		sw $ra, 0($sp)
+
+		ori $t1, $a1, 0		# get arguments
+		ori $t2, $a3, 0
+
+		xori $t2, $t2, -1	# xori second operand with -1 to flip the bits
+
+		ori $a1, $t2, 0		# send the arguments for addition
+		li $a3, 1			# store 1 to a3
+
+		addi $sp, $sp, -4	# storing value of t1 on stack
+		sw $t1, 0($sp)
+
+		jal do_add
+
+		lw $t1, 0($sp)		# retreiving the value from the stack
+		addi $sp, $sp, 4
+
+		ori $a1, $t1, 0		# set the arguments for addition
+		ori $a3, $v0, 0	
+
+		jal do_add			# the result will be returned in v0 and overflow checked in v1
+
 		# retrieve the return address from the stack
 		lw $ra, 0($sp)
 		addi $sp, $sp, 4
