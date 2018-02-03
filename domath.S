@@ -233,13 +233,17 @@ do_math:
 		jr $ra
 
 do_multiply:
+	# Store the return value of do_multiply on the stack
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+
 	li $v0, 0					# Initialize the lo register ($v0) to 0
 	li $v1, 0					# Initialize the hi register ($v1) to 0
 
-	addi $t0, $a1, 0					# Initialize add0 register to the multiplier
+	addi $t0, $a1, 0			# Initialize add0 register to the multiplicand
 	li $t1, 0					# Initialize add1 register to 0
 	
-	addi $t5, $a3, 0				# Copy the multiplier
+	addi $t5, $a3, 0			# Copy the multiplier
 		
 	li $t2, 0					# Initialize a counter to 0
 
@@ -249,59 +253,190 @@ do_multiply:
 		bne $t3, 1, next		# Else --> next
 		
 		# Handles for addition and overflow form lo
-		addi $t3, $v0, 0			# Get the MSB of $v0
+		ori $t3, $v0, 0			# Get the MSB of $v0
 		srl $t3, $t3, 31
 
-		addi $t4, $t0, 0			# Get the MSB of $t0
+		ori $t4, $t0, 0			# Get the MSB of $t0
 		srl $t4, $t4, 31
+		
+		# Store values on the stack
+		addi $sp, $sp, -4
+		sw $v0, 0($sp)
+		addi $sp, $sp, -4
+		sw $v1, 0($sp)
+		addi $sp, $sp, -4
+		sw $t0, 0($sp)
+		addi $sp, $sp, -4
+		sw $t1, 0($sp)
+		addi $sp, $sp, -4
+		sw $t2, 0($sp)
+		addi $sp, $sp, -4
+		sw $t5, 0($sp)
 
-		add $t3, $t3, $t4			# Sum the 2 MSBs
+		# Get the sum of the 2 MSBs
+		ori $a1, $t3, 0
+		ori $a3, $t4, 0
+		jal do_add
+		ori $t3, $v0, 0
+		
+		# Retrieving the values from the stack
 
-		beq $t3, 0, noOverflow		# If the sum == 0 --> noOverflow
-		beq $t3, 2, overflow		# If the sum == 2 --> overflow
+		lw $t5, 0($sp)
+		addi $sp, $sp, 4
+		lw $t2, 0($sp)
+		addi $sp, $sp, 4
+		lw $t1, 0($sp)
+		addi $sp, $sp, 4
+		lw $t0, 0($sp)
+		addi $sp, $sp, 4
+		lw $v1, 0($sp)
+		addi $sp, $sp, 4
+		lw $v0, 0($sp)
+		addi $sp, $sp, 4
 		
-		addu $v0, $v0, $t0	
+
+		# Store values on the stack
+		addi $sp, $sp, -4
+		sw $v1, 0($sp)
+		addi $sp, $sp, -4
+		sw $t0, 0($sp)
+		addi $sp, $sp, -4
+		sw $t1, 0($sp)
+		addi $sp, $sp, -4
+		sw $t2, 0($sp)
+		addi $sp, $sp, -4
+		sw $t5, 0($sp)
+
+		# Add the multiplicand (add0/ $t0) to lo ($v0)
+		ori $a1, $v0, 0
+		ori $a3, $t0, 0
+		jal do_add
+
+		# Retrieving the values from the stack
+		lw $t5, 0($sp)
+		addi $sp, $sp, 4
+		lw $t2, 0($sp)
+		addi $sp, $sp, 4
+		lw $t1, 0($sp)
+		addi $sp, $sp, 4
+		lw $t0, 0($sp)
+		addi $sp, $sp, 4
+		lw $v1, 0($sp)
+		addi $sp, $sp, 4
+
+
+		beq $t3, 0, next2			# If the sum of MSBs== 0 --> noOverflow
+		beq $t3, 2, overflow			# If the sum of MSBs== 2 --> overflow
+
+		ori $t4, $v0, 0			# Get the MSB of $v0
+		srl $t4, $t4, 31
 		
-		addi $t3, $v0, 0		# Get the MSB of $v0
-		srl $t3, $t3, 31
-		
-		beq $t3, 0, overflow2
-		j noOverflow
-		
-		
+		bne $t4, 0, next2			# If the 2 MSBs are different and MSB of sum is not 0 --> noOverflow
+			
 		overflow:
-			addi $v1, $v1, 1			# Else add 1 to the high register
-			addu $v0, $v0, $t0
-			addu $v1, $v1, $t1		# Addition of add1 and hi
-			j next
+			# ---------------------------------------------------------------
+			# Store the values onto the stack
+			addi $sp, $sp, -4
+			sw $t0, 0($sp)
+			addi $sp, $sp, -4
+			sw $t1, 0($sp)
+			addi $sp, $sp, -4
+			sw $t2, 0($sp)
+			addi $sp, $sp, -4
+			sw $v0, 0($sp)
+
+			# Add 1 to the hi ($v1) register
+			ori $a1, $v1, 0
+			jal increment
+			ori $v1, $v0, 0
+
+			# Retrieve the values from the stack
+			lw $v0, 0($sp)
+			addi $sp, $sp, 4
+			lw $t2, 0($sp)
+			addi $sp, $sp, 4
+			lw $t1, 0($sp)
+			addi $sp, $sp, 4
+			lw $t0, 0($sp)
+			addi $sp, $sp, 4
+			# ---------------------------------------------------------------
 			
-		overflow2:
-			addi $v1, $v1, 1
-			addu $v1, $v1, $t1
-			j next
-			
-		noOverflow:
-			addu $v0, $v0, $t0
-			addu $v1, $v1, $t1		# Addition of add1 and hi
+		next2:
+			# Store values on the stack
+			addi $sp, $sp, -4
+			sw $v0, 0($sp)
+			addi $sp, $sp, -4
+			sw $t0, 0($sp)
+			addi $sp, $sp, -4
+			sw $t1, 0($sp)
+			addi $sp, $sp, -4
+			sw $t2, 0($sp)
+			addi $sp, $sp, -4
+			sw $t5, 0($sp)
+
+			# Add add1 to hi ($v1) 
+			ori $a1, $v1, 0
+			ori $a3, $t1, 0
+			jal do_add
+			ori $v1, $v0, 0
+		
+			# Retrieving the values from the stack
+			lw $t5, 0($sp)
+			addi $sp, $sp, 4
+			lw $t2, 0($sp)
+			addi $sp, $sp, 4
+			lw $t1, 0($sp)
+			addi $sp, $sp, 4
+			lw $t0, 0($sp)
+			addi $sp, $sp, 4
+			lw $v0, 0($sp)
+			addi $sp, $sp, 4
 
 		next:
-			addi $t3, $t0, 0		# Get the MSB of the add0 register
+			ori $t3, $t0, 0		# Get the MSB of the add0 register
 			srl $t3, $t3, 31
 
 			sll $t0, $t0, 1			# Shift add0 register left by 1
 			sll $t1, $t1, 1			# Shift add1 register left by 1
 
-			add $t1, $t1, $t3		# Add the MSB of add0 reg to add1 reg
+			or $t1, $t1, $t3		# Add the MSB of add0 reg to add1 reg
 		
 			srl $t5, $t5, 1			# Shift the multiplier right by 1
-			addi $t2, $t2, 1		# Increment the counter
-			beq $t2, 32, return3	# If shift == 32 --> return3
+			
+			# ---------------------------------------------------------------
+			# Store the values onto the stack
+			addi $sp, $sp, -4
+			sw $t0, 0($sp)
+			addi $sp, $sp, -4
+			sw $t1, 0($sp)
+			addi $sp, $sp, -4
+			sw $v0, 0($sp)
+
+			# Increment the counter
+			ori $a1, $t2, 0
+			jal increment
+			ori $t2, $v0, 0
+
+			# Retrieve the values from the stack
+			lw $v0, 0($sp)
+			addi $sp, $sp, 4
+			lw $t1, 0($sp)
+			addi $sp, $sp, 4
+			lw $t0, 0($sp)
+			addi $sp, $sp, 4
+			# ---------------------------------------------------------------
+
+			beq $t2, 32, return3		# If shift == 32 --> return3
 			j loop4
 
 	 return3:
 		#mult $a1, $a3
 		#mfhi $v1
 		#mflo $v0
+
+		# Retrieve the retrun address from the stack
+		lw $ra, 0($sp)
+		addi $sp, $sp, 4
 		jr $ra
 
 do_divide:
@@ -463,10 +598,6 @@ do_add:
 
 		# store values onto stack 
 		addi $sp, $sp, -4
-		sw $a1, 0($sp)
-		addi $sp, $sp, -4
-		sw $a2, 0($sp)
-		addi $sp, $sp, -4
 		sw $t1, 0($sp)
 		addi $sp, $sp, -4
 		sw $t2, 0($sp)
@@ -486,10 +617,6 @@ do_add:
 		addi $sp, $sp, 4
 		lw $t1, 0($sp)
 		addi $sp, $sp, 4
-		lw $a2, 0($sp)
-		addi $sp, $sp, 4
-		lw $a1, 0($sp)
-		addi $sp, $sp, 4
 
 		sllv $v0, $v0, $t4	# shift the sum left by the counter value
 		or $t5, $v0, $t5	# or the bitwise sum with the accumulator
@@ -498,8 +625,30 @@ do_add:
 		srl $t2, $t2, 1
 
 		ori $t3, $v1, 0		# storing the carry out as the next carry in 
+		
+		# ---------------------------------------------------------------
+		# Store the values onto the stack
+		addi $sp, $sp, -4
+		sw $t0, 0($sp)
+		addi $sp, $sp, -4
+		sw $t1, 0($sp)
+		addi $sp, $sp, -4
+		sw $t2, 0($sp)
 
-		addi $t4, $t4, 1	# increment the counter
+		# Increment the counter
+		ori $a1, $t4, 0
+		jal increment
+		ori $t4, $v0, 0
+
+		# Retrieve the values from the stack
+		lw $t2, 0($sp)
+		addi $sp, $sp, 4
+		lw $t1, 0($sp)
+		addi $sp, $sp, 4
+		lw $t0, 0($sp)
+		addi $sp, $sp, 4
+	
+		# ---------------------------------------------------------------
 		beq $t4, 32, continue2		# exit loop if counter = 32
 		j loop6
 
@@ -509,7 +658,8 @@ do_add:
 		# check for overflow with signed integers : 
 		# overflow only occurs when both the operands have the same sign 
 		# and the sum has a different sign
-		bne $t6, $t7, no_overflow1	
+
+		bne $t6, $t7, no_overflow1	# If the signs of the operands are not equalt --> no_overflow1
 
 		ori $t8, $t5, 0		# moving sum into t8
 		srl $t8, $t8, 31	# getting the sign of the sum
@@ -535,7 +685,8 @@ do_subtract:
 
 		ori $t1, $a1, 0		# get arguments
 		ori $t2, $a3, 0
-
+		
+		# Negating the second argument
 		xori $t2, $t2, -1	# xori second operand with -1 to flip the bits
 
 		ori $a1, $t2, 0		# send the arguments for addition
@@ -558,3 +709,658 @@ do_subtract:
 		lw $ra, 0($sp)
 		addi $sp, $sp, 4
 		jr $ra
+
+
+increment:
+	ori $t1, $a1, 0		# Get the argument
+	li $v0, 0			# Initialize the return value to 0
+
+	li $t0, 0  # set $t0 to 1, once first 0 is found
+ 	
+
+	# 1 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip1		# Already seen first 0 
+	beq $t2, 0, zeroFlip1
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip1
+
+	zeroFlip1:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip1:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 2 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip2		# Already seen first 0 
+	beq $t2, 0, zeroFlip2
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip2
+
+	zeroFlip2:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip2:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 3 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip3		# Already seen first 0 
+	beq $t2, 0, zeroFlip3
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip3
+
+	zeroFlip3:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip3:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 4 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip4		# Already seen first 0 
+	beq $t2, 0, zeroFlip4
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip4
+
+	zeroFlip4:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip4:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 5 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip5		# Already seen first 0 
+	beq $t2, 0, zeroFlip5
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip5
+
+	zeroFlip5:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip5:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 6 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip6		# Already seen first 0 
+	beq $t2, 0, zeroFlip6
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip6
+
+	zeroFlip6:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip6:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 7 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip7		# Already seen first 0 
+	beq $t2, 0, zeroFlip7
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip7
+
+	zeroFlip7:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip7:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 8 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip8		# Already seen first 0 
+	beq $t2, 0, zeroFlip8
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip8
+
+	zeroFlip8:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip8:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 9 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip9		# Already seen first 0 
+	beq $t2, 0, zeroFlip9
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip9
+
+	zeroFlip9:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip9:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 10 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip10		# Already seen first 0 
+	beq $t2, 0, zeroFlip10
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip10
+
+	zeroFlip10:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip10:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 11 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip11		# Already seen first 0 
+	beq $t2, 0, zeroFlip11
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip11
+
+	zeroFlip11:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip11:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 12 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip12		# Already seen first 0 
+	beq $t2, 0, zeroFlip12
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip12
+
+	zeroFlip12:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip12:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 13 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip13		# Already seen first 0 
+	beq $t2, 0, zeroFlip13
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip13
+
+	zeroFlip13:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip13:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 14 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip14		# Already seen first 0 
+	beq $t2, 0, zeroFlip14
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip14
+
+	zeroFlip14:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip14:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 15 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip15		# Already seen first 0 
+	beq $t2, 0, zeroFlip15
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip15
+
+	zeroFlip15:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip15:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 16 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip16		# Already seen first 0 
+	beq $t2, 0, zeroFlip16
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip16
+
+	zeroFlip16:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip16:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 17 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip17		# Already seen first 0 
+	beq $t2, 0, zeroFlip17
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip17
+
+	zeroFlip17:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip17:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 18 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip18		# Already seen first 0 
+	beq $t2, 0, zeroFlip18
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip18
+
+	zeroFlip18:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip18:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 19 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip19		# Already seen first 0 
+	beq $t2, 0, zeroFlip19
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip19
+
+	zeroFlip19:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip19:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 20 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip20		# Already seen first 0 
+	beq $t2, 0, zeroFlip20
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip20
+
+	zeroFlip20:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip20:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 21 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip21		# Already seen first 0 
+	beq $t2, 0, zeroFlip21
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip21
+
+	zeroFlip21:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip21:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 22 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip22		# Already seen first 0 
+	beq $t2, 0, zeroFlip22
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip22
+
+	zeroFlip22:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip22:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 23 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip23		# Already seen first 0 
+	beq $t2, 0, zeroFlip23
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip23
+
+	zeroFlip23:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip23:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 24 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip24		# Already seen first 0 
+	beq $t2, 0, zeroFlip24
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip24
+
+	zeroFlip24:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip24:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 25 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip25		# Already seen first 0 
+	beq $t2, 0, zeroFlip25
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip25
+
+	zeroFlip25:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip25:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 26 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip26		# Already seen first 0 
+	beq $t2, 0, zeroFlip26
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip26
+
+	zeroFlip26:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip26:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 27 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip27		# Already seen first 0 
+	beq $t2, 0, zeroFlip27
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip27
+
+	zeroFlip27:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip27:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 28 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip28		# Already seen first 0 
+	beq $t2, 0, zeroFlip28
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip28
+
+	zeroFlip28:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip28:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 29 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip29		# Already seen first 0 
+	beq $t2, 0, zeroFlip29
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip29
+
+	zeroFlip29:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip29:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 30 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip30		# Already seen first 0 
+	beq $t2, 0, zeroFlip30
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip30
+
+	zeroFlip30:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip30:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 31 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip31		# Already seen first 0 
+	beq $t2, 0, zeroFlip31
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip31
+
+	zeroFlip31:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip31:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	# 32 -------------------------------------------------------------------
+	andi $t2, $t1, 1		# Get the LSB of number
+	sll $t2, $t2, 31
+		
+	beq $t0, 1, noFlip32		# Already seen first 0 
+	beq $t2, 0, zeroFlip32
+
+	li $t2, 0				# Flips 1 to 0
+	j noFlip32
+
+	zeroFlip32:
+		li $t0, 1			# Set seen 0 to 1
+		li $t2, 1
+		sll $t2, $t2, 31
+
+	noFlip32:
+		srl $v0, $v0, 1
+		or $v0, $v0, $t2
+		srl $t1, $t1, 1	
+	# ---------------------------------------------------------------------
+	
+	return5:
+		jr $ra
+
+
+
