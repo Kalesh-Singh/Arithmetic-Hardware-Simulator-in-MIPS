@@ -10,6 +10,7 @@
 	prompt2:    .asciiz     "Please enter an operator (+, -, *, /): "
 	error_msg:  .asciiz     "Error: invalid arithmetic operation 'OP'." 
 	largeNum:	.space		20
+	nan:		.asciiz		"NaN"
 
 # Instructions in the .text section.
 .text
@@ -32,7 +33,7 @@ main:
 	syscall
 
 	# Put input integer into argument register
-	add $a1, $v0, $zero
+	ori $a1, $v0, 0
     
 	# Prompt the user to enter the sign
 	li $v0, 4
@@ -44,7 +45,7 @@ main:
 	syscall
 	
 	# Put the input sign into argument register
-	add $a2, $v0, $zero
+	ori $a2, $v0, 0
 
 	# Prompt the user to enter the 2nd integer
 	li $v0, 4
@@ -56,7 +57,7 @@ main:
 	syscall
 	
 	# Put input integer into argument register
-	add $a3, $v0, $zero
+	ori $a3, $v0, 0
 	
 	# Call do_math
 	jal do_math
@@ -90,6 +91,8 @@ do_math:
 	addi $sp, $sp, -4
 	sw $a3, 0($sp)
 
+	li $s2, 0		# Initialize division by zero check to false
+
     addition:
 		bne $a2, '+', subtraction
 		jal do_add
@@ -105,12 +108,12 @@ do_math:
 		
 		li $s0, 0			# We will use $s0 to manage the sign of our multiplication
 		
-		bgt $a1, 0, secondNumNegative
+		bge $a1, 0, secondNumNegative
 		sub $a1, $zero, $a1		# Convert to absolute value
 		addi $s0, $s0, 1
 
 		secondNumNegative:
-			bgt $a3, 0, bothPosOrNeg
+			bge $a3, 0, bothPosOrNeg
 			sub $a3, $zero, $a3		# Convert to absolute value
 			addi $s0, $s0, 1
 
@@ -120,9 +123,28 @@ do_math:
 
     division:
 		bne $a2, '/', error
-		jal do_divide
-		j print_result
+		# -----------------------------------------------------------------------
+		li $s0, 0		# We will use $s0 to store the sign of the dividend
+		li $s1, 0		# We will use $s1 to store teh sign of the divisor
+		
+		bge $a1, 0, divisorNegative
+		sub $a1, $zero, $a1
+		li $s0, 1
 
+		divisorNegative:
+			bge $a3, 0, callDivide
+			sub $a3, $zero, $a3
+			li $s1, 1
+
+		callDivide:
+		# -----------------------------------------------------------------------
+			beq $a3, 0, divisorZero
+			jal do_divide
+			j print_result
+			
+		divisorZero:
+			li $s2, 1
+			j print_result
 	error:
 		li $v0, 4
 		la $a0, error_msg
@@ -181,36 +203,59 @@ do_math:
 		li $a0, ' '      # 32 - Is the ASCII decimal value of ' '
 		syscall
 
+		beq $s2, 1, notANumber
+
 		# Print the integer result
 		beq $a2, '*', multiply	# If sign is '*' --> multiply
-		
+
+		bne $a2, '/', result_32bits
+		beq $s0, $s1, result_32bits
+		beq $t0, 0, result_32bits
+
+		# Print a negative sign
+		li $v0, 11
+		li $a0, '-'
+		syscall
+
 		result_32bits:
 			li $v0, 1
 			add $a0, $t0, $zero
 			syscall
 		
 		bne $a2, '/', return		# If sign argument is not '/' --> return
-		
+
 		# Print space
 		li $v0, 11
 		li $a0, ' '      # 32 - Is the ASCII decimal value of ' '
 		syscall
+
+		beq $t1, 0, return 			# Don't print a remainder if it is zero
 
 		# Print the remainder for division
 		# Print 'R' for remainder
 		li $v0, 11
 		li $a0, 'R'		# 82 == 'R'
 		syscall
-		
-		# Print space
-		# li $v0, 11
-		# li $a0, 32      # 32 - Is the ASCII decimal value of ' '
-		# syscall
 
-		# Print the remainder from $t1
-		li $v0, 1
-		add $a0, $t1, $zero
+		# Print space
+		li $v0, 11
+		li $a0, ' '      # 32 - Is the ASCII decimal value of ' '
 		syscall
+
+		beq $s0, 0, remainderValue
+
+		# Print a negative sign
+		li $v0, 11
+		li $a0, '-'
+		syscall
+		
+		remainderValue:		
+			# Print the remainder from $t1
+			li $v0, 1
+			ori $a0, $t1, 0
+			syscall
+
+		j return
 
 		multiply:
 			# Check and print the sign of the product
@@ -222,9 +267,16 @@ do_math:
 			beq $t1, 0, result_32bits
 			
 			setArgs:
-				addi $a0, $t0, 0
-				addi $a1, $t1, 0
+				ori $a0, $t0, 0
+				ori $a1, $t1, 0
 				jal print64bitNum
+
+			j return
+
+	notANumber:
+		li $v0, 4
+		la $a0, nan
+		syscall 
 
 	return:
 		# Restore return address and unwind the stack
@@ -240,10 +292,10 @@ do_multiply:
 	li $v0, 0					# Initialize the lo register ($v0) to 0
 	li $v1, 0					# Initialize the hi register ($v1) to 0
 
-	addi $t0, $a1, 0			# Initialize add0 register to the multiplicand
+	ori $t0, $a1, 0			# Initialize add0 register to the multiplicand
 	li $t1, 0					# Initialize add1 register to 0
 	
-	addi $t5, $a3, 0			# Copy the multiplier
+	ori $t5, $a3, 0			# Copy the multiplier
 		
 	li $t2, 0					# Initialize a counter to 0
 
@@ -438,26 +490,16 @@ do_multiply:
 			j loop4
 
 	 return3:
-		#mult $a1, $a3
-		#mfhi $v1
-		#mflo $v0
-
 		# Retrieve the retrun address from the stack
 		lw $ra, 0($sp)
 		addi $sp, $sp, 4
 		jr $ra
 
-do_divide:
-	# TODO: implement do_divide
-	div $a1, $a3 # FIXME: div is not allowed!
-	mfhi $v1 # remainder
-	mflo $v0 # quotient
-	jr $ra
 
 print64bitNum:
 	# Get the arguments
-	addi $t0, $a0, 0
-	addi $t1, $a1, 0
+	ori $t0, $a0, 0
+	ori $t1, $a1, 0
 
 	li $t2, 0				# Initialize the digit count to 0
 	li $t3, 19				# Set the index of the least significant digit to 19
@@ -481,7 +523,6 @@ print64bitNum:
 		mfhi $t6							# Get the remainder
 		addi $sp, $sp, -1					# Store the remainder on the stack
 		sb $t6, 0($sp)	
-		# beq $t5, 16, decimal					
 		beq $t1, 0, decimal					# If dividend == 0 --> decimal
 		j loop2
 
@@ -541,6 +582,8 @@ print64bitNum:
 
 	return2:
 		jr $ra
+
+
 
 half_adder:
 	ori $t1, $a1, 0		# moving arguments to registers
@@ -756,6 +799,74 @@ increment:
 		j loop7
 	
 	return5:
+		jr $ra
+
+do_divide:
+	# Store the return address on the stack
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+	
+	# Get the arguments
+	ori $t1, $a1, 0
+	ori $t2, $a3, 0
+	
+	li $t0, 0		# Initialize a counter to 0
+
+	loop8:
+		blt $t1, $t2, return8
+
+		# ------------------------------------------------
+		# Store the values onto the stack
+		addi $sp, $sp, -4
+		sw $t0, 0($sp)
+		addi $sp, $sp, -4
+		sw $t2, 0($sp)
+
+		ori $a1, $t1, 0		# Set the arguments		
+		ori $a3, $t2, 0
+		jal do_subtract
+		ori $t1, $v0, 0
+
+		# Retrieve the values from the stack
+		lw $t2, 0($sp)
+		addi $sp, $sp, 4
+		lw $t0, 0($sp)
+		addi $sp, $sp, 4
+		# ------------------------------------------------
+		
+		# Store values onto the stack
+		addi $sp, $sp, -4
+		sw $t1, 0($sp)
+		addi $sp, $sp, -4
+		sw $t2, 0($sp)
+		addi $sp, $sp, -4
+		sw $t3, 0($sp)
+
+		# Increment the counter
+		ori $a1, $t0, 0
+		jal increment
+		ori $t0, $v0, 0
+
+		# Retrieve values from the stack
+		lw $t3, 0($sp)
+		addi $sp, $sp, 4
+		lw $t2, 0($sp)
+		addi $sp, $sp, 4
+		lw $t1, 0($sp)
+		addi $sp, $sp, 4
+		# -----------------------------------------------
+
+		j loop8
+	
+	return8:
+		li $v0, 0
+		ori $v0, $t0, 0
+		li $v1, 0
+		ori $v1, $t1, 0
+	
+		# Retrieve the return address from the stack
+		lw $ra, 0($sp)
+		addi $sp, $sp, 4
 		jr $ra
 
 
