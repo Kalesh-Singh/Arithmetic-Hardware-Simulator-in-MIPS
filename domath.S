@@ -11,6 +11,7 @@
 	error_msg:  .asciiz     "Error: invalid arithmetic operation 'OP'." 
 	largeNum:	.space		20
 	nan:		.asciiz		"NaN"
+	overflow_error:	.asciiz	" (Error: Arithmetic overflow)" 
 
 # Instructions in the .text section.
 .text
@@ -222,14 +223,14 @@ do_math:
 			add $a0, $t0, $zero
 			syscall
 		
-		bne $a2, '/', return		# If sign argument is not '/' --> return
+		bne $a2, '/', overflowCheck		# If sign argument is not '/' --> overflowCheck
 
 		# Print space
 		li $v0, 11
 		li $a0, ' '      # 32 - Is the ASCII decimal value of ' '
 		syscall
 
-		beq $t1, 0, return 			# Don't print a remainder if it is zero
+		beq $t1, 0, overflowCheck 			# Don't print a remainder if it is zero
 
 		# Print the remainder for division
 		# Print 'R' for remainder
@@ -255,7 +256,7 @@ do_math:
 			ori $a0, $t1, 0
 			syscall
 
-		j return
+		j overflowCheck
 
 		multiply:
 			# Check and print the sign of the product
@@ -271,11 +272,20 @@ do_math:
 				ori $a1, $t1, 0
 				jal print64bitNum
 
-			j return
+			j overflowCheck
 
 	notANumber:
 		li $v0, 4
 		la $a0, nan
+		syscall 
+
+	overflowCheck:
+		beq $a2, '*', return
+		beq $a2, '/', return
+		beq $t1, 0, return
+		
+		li $v0, 4		# Print overflow error message
+		la $a0, overflow_error
 		syscall 
 
 	return:
