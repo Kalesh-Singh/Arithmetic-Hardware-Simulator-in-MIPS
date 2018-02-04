@@ -47,6 +47,11 @@ main:
 	
 	# Put the input sign into argument register
 	ori $a2, $v0, 0
+		
+	# Print a new line character
+	li $v0, 11
+	li $a0, 10      # 10 == '\n'
+	syscall
 
 	# Prompt the user to enter the 2nd integer
 	li $v0, 4
@@ -730,13 +735,13 @@ do_add:
 		ori $t8, $t5, 0		# moving sum into t8
 		srl $t8, $t8, 31	# getting the sign of the sum
 
-		bne $t6, $t8, no_overflow1 
+		beq $t6, $t8, no_overflow1 
 
 		li $v1, 1			# set overflow return value to 1
-		J return4
+		j return4
 
 	no_overflow1:
-		li $v1, 1			# set overflow return value to 0
+		li $v1, 0			# set overflow return value to 0
 
 	return4:
 		# retrieve the return address from the stack
@@ -752,8 +757,11 @@ do_subtract:
 		ori $t1, $a1, 0		# get arguments
 		ori $t2, $a3, 0
 		
+		lui $t8, 0xFFFF
+		ori $t8, $t8, 0xFFFF
+
 		# Negating the second argument
-		xori $t2, $t2, -1	# xori second operand with -1 to flip the bits
+		xor $t2, $t2, $t8 	# xor second operand with -1 to flip the bits
 
 		ori $a1, $t2, 0		# send the arguments for addition
 		li $a3, 1			# store 1 to a3
