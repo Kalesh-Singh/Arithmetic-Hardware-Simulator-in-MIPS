@@ -72,12 +72,10 @@ main:
 	lw $ra, 0($sp)
 	addi $sp, $sp, 4
 
-	# TODO: return 0 from main using jr (do not use the 'exit' syscall)
+	# return 0 from main using jr (do not use the 'exit' syscall)
 
-	# TODO: Delete this after fixing the above return
-	Exit:
-		li $v0, 10
-		syscall
+	li $v0, 10
+	jr $ra
 
 # do_math takes three register arguments containing two integers (X, Y)
 # and a character indicating an arithmetic operator (OP),
@@ -225,7 +223,7 @@ do_math:
 
 		result_32bits:
 			li $v0, 1
-			add $a0, $t0, $zero
+			or $a0, $t0, $zero
 			syscall
 		
 		bne $a2, '/', overflowCheck		# If sign argument is not '/' --> overflowCheck
@@ -264,6 +262,9 @@ do_math:
 		j overflowCheck
 
 		multiply:
+			
+			beq $t0, 0, result_32bits		# If li == 0 --> print 32bits
+
 			# Check and print the sign of the product
 			bne $s0, 1, setArgs				# If the number of negative signs is not 1 --> Set args
 			li $v0, 11
@@ -311,6 +312,9 @@ do_multiply:
 	li $t1, 0					# Initialize add1 register to 0
 	
 	ori $t5, $a3, 0			# Copy the multiplier
+
+	beq $a3, 0, return3			# If the multiplier or multiplicand is zero
+	beq $a1, 0, return3			# --> return3
 		
 	li $t2, 0					# Initialize a counter to 0
 
