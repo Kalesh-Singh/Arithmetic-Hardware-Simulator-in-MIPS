@@ -1,4 +1,4 @@
-# CSCI 202 - Computer Organization II - MIPS Project 1 #
+# Arithmetic Hardware Simulator in MIPS #
 
 This MIPS Program simulates a simple calculator and implements user defined versions of the basic arithmetic operations in MIPS. 
 
